@@ -1,0 +1,7 @@
+node_modules
+logs
+.vscode
+.env
+package-lock.json
+com.highturtle.homeassistant.plugin/backend
+com.highturtle.homeassistant.plugin/config.json

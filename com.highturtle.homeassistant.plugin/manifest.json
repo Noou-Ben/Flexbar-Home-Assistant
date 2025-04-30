@@ -1,0 +1,143 @@
+{
+    "name": "HomeAssistant",
+    "uuid": "com.highturtle.homeassistant",
+    "version": "1.0.0",
+    "author": "HighTurtle",
+    "entry": "backend/plugin.cjs",
+    "description": "HomeAssistant integration to show  nd control states and stats",
+    "repo": "https://github.com/Noou-Ben/Flexbar-Home-Assistant",
+    "sdk": {
+        "version": "1.0.0"
+    },
+    "software": {
+        "minimumVersion": "1.0.0"
+    },
+    "os": [
+        {
+            "platform": "mac",
+            "minimumVersion": "10.15"
+        },
+        {
+            "platform": "windows",
+            "minimumVersion": "10"
+        }
+    ],
+    "device": [
+        {
+            "name": "flexbar",
+            "version": "1.0.0"
+        }
+    ],
+    "configPage": "config",
+    "keyLibrary": {
+        "title": "$PluginName",
+        "style": {
+            "icon": "mdi mdi-home-assistant"
+        },
+        "children": [
+            {
+                "title": "$EntityState.Title",
+                "tip": "$EntityState.Tip",
+                "cid": "com.highturtle.homeassistant.state",
+                "config": {
+                    "keyType": "default",
+                    "clickable": false
+                },
+                "style": {
+                    "icon": "mdi mdi-gauge",
+                    "width": 240
+                },
+                "data": {
+                    "entityId": "",
+                    "customTitle": ""
+                }
+            },
+            {
+                "title": "$ServiceCall.Title",
+                "tip": "$ServiceCall.Tip",
+                "cid": "com.highturtle.homeassistant.service",
+                "config": {
+                    "keyType": "default",
+                    "clickable": true
+                },
+                "style": {
+                    "icon": "mdi mdi-api",
+                    "width": 240
+                },
+                "data": {
+                    "domain": "",
+                    "service": "",
+                    "serviceData": "{}",
+                    "customTitle": ""
+                }
+            },
+            {
+                "title": "$EventTrigger.Title",
+                "tip": "$EventTrigger.Tip",
+                "cid": "com.highturtle.homeassistant.event",
+                "config": {
+                    "keyType": "default",
+                    "clickable": true
+                },
+                "style": {
+                    "icon": "mdi mdi-lightning-bolt",
+                    "width": 240
+                },
+                "data": {
+                    "eventType": "",
+                    "eventData": "{}",
+                    "customTitle": ""
+                }
+            }
+        ]
+    },
+    "local": {
+        "en": {
+            "PluginName": "Home Assistant",
+            "EntityState": {
+                "Title": "Entity State",
+                "Tip": "Display the state of a Home Assistant entity",
+                "Fields": {
+                    "EntityId": {
+                        "Label": "Entity",
+                        "Placeholder": "Select an entity"
+                    }
+                }
+            },
+            "ServiceCall": {
+                "Title": "Service Call",
+                "Tip": "Call a Home Assistant service",
+                "Fields": {
+                    "Domain": {
+                        "Label": "Domain",
+                        "Placeholder": "e.g. light, switch"
+                    },
+                    "Service": {
+                        "Label": "Service",
+                        "Placeholder": "e.g. turn_on, turn_off"
+                    },
+                    "ServiceData": {
+                        "Label": "Service Data",
+                        "Placeholder": "JSON data for the service call"
+                    }
+                }
+            },
+            "EventTrigger": {
+                "Title": "Event Trigger",
+                "Tip": "Trigger a Home Assistant event",
+                "Fields": {
+                    "EventType": {
+                        "Label": "Event Type",
+                        "Placeholder": "e.g. button_pressed"
+                    },
+                    "EventData": {
+                        "Label": "Event Data",
+                        "Placeholder": "JSON data for the event"
+                    }
+                }
+            },
+            "CustomTitle": "Custom Title",
+            "CustomTitleDesc": "Optional custom title for the key"
+        }
+    }
+}
