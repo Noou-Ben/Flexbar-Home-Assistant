@@ -49,3 +49,17 @@ This plugin integrates Home Assistant with Flexbar, allowing you to monitor and 
 ## Support
 
 For issues and feature requests, please visit the [GitHub repository](https://github.com/Noou-Ben/Flexbar-Home-Assistant).
+
+## Changelog
+### 1.0.1 (2025-05-02)
+- Improved error handling for API connection failures
+- Enhanced feedback messages for configuration issues
+
+### 1.0.0 (2025-04-30)
+- Initial release
+- Entity state monitoring functionality
+- Service call integration
+- Event trigger support
+- Real-time state updates
+- Customizable display options
+- Basic error handling

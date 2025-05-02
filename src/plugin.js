@@ -3,6 +3,7 @@ const https = require('https')
 
 // Store key data
 const keyData = {}
+const refreshIntervals = {}
 
 class HomeAssistantPlugin {
   constructor() {
@@ -57,16 +58,39 @@ class HomeAssistantPlugin {
 
         res.on('end', () => {
           try {
-            const parsedData = JSON.parse(responseData)
-            logger.info('Response status:', res.statusCode)
-            logger.info('Response data:', parsedData)
+            logger.info('Raw response data:', responseData)
+            
+            // If we get a non-200 status code, handle it appropriately
             if (res.statusCode >= 400) {
-              reject(new Error(parsedData.message || `HTTP ${res.statusCode}`))
-            } else {
-              resolve(parsedData)
+              let errorMessage = `HTTP ${res.statusCode}: ${res.statusMessage}`
+              try {
+                // Try to parse as JSON first
+                const parsedData = JSON.parse(responseData)
+                errorMessage = parsedData.message || errorMessage
+              } catch (e) {
+                // If not JSON, use the raw response
+                if (responseData) {
+                  errorMessage = responseData
+                }
+              }
+              reject(new Error(errorMessage))
+              return
             }
+
+            // For successful responses, try to parse as JSON
+            if (!responseData) {
+              resolve(null)
+              return
+            }
+
+            const parsedData = JSON.parse(responseData)
+            logger.info('Response data:', parsedData)
+            resolve(parsedData)
           } catch (error) {
-            reject(error)
+            logger.error('Error parsing response:', error)
+            logger.error('Response data that failed to parse:', responseData)
+            // If parsing fails, use the raw response as the error message
+            reject(new Error(responseData || error.message))
           }
         })
       })
@@ -184,7 +208,8 @@ plugin.on('ui.message', async (payload) => {
         return 'Hello from plugin backend!'
     } catch (error) {
         logger.error('Error handling UI message:', error)
-        throw error
+        // Instead of throwing, return the error as a value
+        return { error: error.message || String(error) }
     }
 })
 
@@ -250,11 +275,22 @@ plugin.on('plugin.data', async (payload) => {
     }
 })
 
+// Add cleanup for removed keys
+plugin.on('plugin.removed', (payload) => {
+    logger.info('Plugin removed:', payload)
+    if (payload.key && refreshIntervals[payload.key.uid]) {
+        clearInterval(refreshIntervals[payload.key.uid])
+        delete refreshIntervals[payload.key.uid]
+    }
+})
+
 async function renderKey(serialNumber, key) {
     try {
         if (key.cid === 'com.highturtle.homeassistant.state') {
             const entityId = key.data?.entityId
             const customTitle = key.data?.customTitle
+            const refreshInterval = key.data?.refreshInterval || 10000 // Default to 10 seconds
+
             if (!entityId) {
                 key.style.showIcon = true
                 key.style.showTitle = true
@@ -266,23 +302,51 @@ async function renderKey(serialNumber, key) {
 
             const actualEntityId = typeof entityId === 'object' ? entityId.entity_id : entityId
 
-            try {
-                const entity = await haPlugin.getEntityState({ entityId: actualEntityId })
-                const displayName = customTitle || entity.attributes?.friendly_name || actualEntityId
-                const state = entity.state
-                const unit = entity.attributes?.unit_of_measurement || ''
-
-                key.style.showIcon = true
-                key.style.showTitle = true
-                key.title = `${displayName}\n${state}${unit ? ' ' + unit : ''}`
-                console.log('key.title', key.title)
-            } catch (error) {
-                logger.error('Error fetching entity state:', error)
-                key.style.showIcon = true
-                key.style.showTitle = true
-                key.title = `Entity not found\n${actualEntityId}`
-                key.style.icon = 'mdi mdi-alert'
+            // Clear any existing interval for this key
+            if (refreshIntervals[key.uid]) {
+                clearInterval(refreshIntervals[key.uid])
             }
+
+            // Function to update the key state
+            const updateKeyState = async () => {
+                try {
+                    const entity = await haPlugin.getEntityState({ entityId: actualEntityId })
+                    const displayName = customTitle || entity.attributes?.friendly_name || actualEntityId
+                    const state = entity.state
+                    const unit = entity.attributes?.unit_of_measurement || ''
+
+                    key.style.showIcon = true
+                    key.style.showTitle = true
+                    key.title = `${displayName}\n${state}${unit ? ' ' + unit : ''}`
+                    plugin.draw(serialNumber, key, 'draw')
+                } catch (error) {
+                    logger.error('Error fetching entity state:', error)
+                    key.style.showIcon = true
+                    key.style.showTitle = true
+                    
+                    // Handle different types of errors
+                    let errorMessage = 'Error'
+                    if (error.message.includes('401')) {
+                        errorMessage = 'Authentication Failed\nCheck API Key'
+                        key.style.icon = 'mdi mdi-key-remove'
+                    } else if (error.message.includes('404')) {
+                        errorMessage = 'Entity Not Found'
+                        key.style.icon = 'mdi mdi-alert'
+                    } else {
+                        errorMessage = error.message
+                        key.style.icon = 'mdi mdi-alert'
+                    }
+                    
+                    key.title = `${actualEntityId}\n${errorMessage}`
+                    plugin.draw(serialNumber, key, 'draw')
+                }
+            }
+
+            // Initial update
+            await updateKeyState()
+
+            // Set up interval for future updates
+            refreshIntervals[key.uid] = setInterval(updateKeyState, refreshInterval)
         } else if (key.cid === 'com.highturtle.homeassistant.service') {
             const { domain, service, customTitle } = key.data
             if (!domain || !service) {
