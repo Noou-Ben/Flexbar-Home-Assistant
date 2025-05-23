@@ -1,5 +1,6 @@
 const { plugin, logger, pluginPath, resourcesPath } = require("@eniac/flexdesigner")
 const https = require('https')
+const http = require('http')
 
 // Store key data
 const keyData = {}
@@ -30,6 +31,10 @@ class HomeAssistantPlugin {
   }
 
   async makeRequest(path, method = 'GET', data = null) {
+    logger.info('Making request to:', path)
+    logger.info('Initialized:', this.initialized)
+    console.log('Making request to:', path)
+    console.log('Initialized:', this.initialized)
     if (!this.initialized) {
       throw new Error('Home Assistant plugin not initialized. Please check configuration.')
     }
@@ -49,62 +54,75 @@ class HomeAssistantPlugin {
         options.body = JSON.stringify(data)
       }
 
-      const req = https.request(url, options, (res) => {
-        let responseData = ''
-        
-        res.on('data', (chunk) => {
-          responseData += chunk
-        })
-
-        res.on('end', () => {
-          try {
-            logger.info('Raw response data:', responseData)
+      const makeHttpRequest = (protocol) => {
+        return new Promise((resolveHttp, rejectHttp) => {
+          const client = protocol === 'https' ? https : http
+          const req = client.request(url, options, (res) => {
+            let responseData = ''
             
-            // If we get a non-200 status code, handle it appropriately
-            if (res.statusCode >= 400) {
-              let errorMessage = `HTTP ${res.statusCode}: ${res.statusMessage}`
+            res.on('data', (chunk) => {
+              responseData += chunk
+            })
+
+            res.on('end', () => {
               try {
-                // Try to parse as JSON first
-                const parsedData = JSON.parse(responseData)
-                errorMessage = parsedData.message || errorMessage
-              } catch (e) {
-                // If not JSON, use the raw response
-                if (responseData) {
-                  errorMessage = responseData
+                logger.info('Raw response data:', responseData)
+                
+                if (res.statusCode >= 400) {
+                  let errorMessage = `HTTP ${res.statusCode}: ${res.statusMessage}`
+                  try {
+                    const parsedData = JSON.parse(responseData)
+                    errorMessage = parsedData.message || errorMessage
+                  } catch (e) {
+                    if (responseData) {
+                      errorMessage = responseData
+                    }
+                  }
+                  rejectHttp(new Error(errorMessage))
+                  return
                 }
+
+                if (!responseData) {
+                  resolveHttp(null)
+                  return
+                }
+
+                const parsedData = JSON.parse(responseData)
+                logger.info('Response data:', parsedData)
+                resolveHttp(parsedData)
+              } catch (error) {
+                logger.error('Error parsing response:', error)
+                logger.error('Response data that failed to parse:', responseData)
+                rejectHttp(new Error(responseData || error.message))
               }
-              reject(new Error(errorMessage))
-              return
-            }
+            })
+          })
 
-            // For successful responses, try to parse as JSON
-            if (!responseData) {
-              resolve(null)
-              return
-            }
+          req.on('error', (error) => {
+            logger.error('Request error:', error)
+            rejectHttp(error)
+          })
 
-            const parsedData = JSON.parse(responseData)
-            logger.info('Response data:', parsedData)
-            resolve(parsedData)
-          } catch (error) {
-            logger.error('Error parsing response:', error)
-            logger.error('Response data that failed to parse:', responseData)
-            // If parsing fails, use the raw response as the error message
-            reject(new Error(responseData || error.message))
+          if (data) {
+            req.write(JSON.stringify(data))
           }
+
+          req.end()
         })
-      })
-
-      req.on('error', (error) => {
-        logger.error('Request error:', error)
-        reject(error)
-      })
-
-      if (data) {
-        req.write(JSON.stringify(data))
       }
 
-      req.end()
+      // Try HTTPS first, then fall back to HTTP if it fails
+      makeHttpRequest('https')
+        .then(resolve)
+        .catch((httpsError) => {
+          logger.info('HTTPS request failed, trying HTTP:', httpsError.message)
+          makeHttpRequest('http')
+            .then(resolve)
+            .catch((httpError) => {
+              logger.error('Both HTTPS and HTTP requests failed')
+              reject(new Error(`Failed to connect: ${httpError.message}`))
+            })
+        })
     })
   }
 
@@ -122,6 +140,8 @@ class HomeAssistantPlugin {
   }
 
   async getEntities() {
+    logger.info('Fetching entities')
+    console.log('Fetching entities cl')
     try {
       if (!this.initialized) {
         throw new Error('Home Assistant plugin not initialized')

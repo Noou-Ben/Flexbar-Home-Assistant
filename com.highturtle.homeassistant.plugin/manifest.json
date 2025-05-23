@@ -1,7 +1,7 @@
 {
     "name": "HomeAssistant",
     "uuid": "com.highturtle.homeassistant",
-    "version": "1.0.0",
+    "version": "1.0.2",
     "author": "HighTurtle",
     "entry": "backend/plugin.cjs",
     "description": "HomeAssistant integration to show  nd control states and stats",

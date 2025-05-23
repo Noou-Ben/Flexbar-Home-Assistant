@@ -110,6 +110,8 @@ export default {
       this.error = null
       try {
         const response = await this.$fd.sendToBackend('getEntities')
+
+
         if (response && response.error) {
           this.error = response.error
           this.entities = []

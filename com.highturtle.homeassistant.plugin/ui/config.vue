@@ -27,6 +27,7 @@
             outlined
             hide-details
           ></v-text-field>
+
         </v-form>
       </v-card-text>
       <v-card-actions>
@@ -51,6 +52,8 @@ export default {
     return {
       valid: false,
       showApiKey: false,
+      testing: false,
+      testError: null,
       urlRules: [
         v => !!v || 'URL is required',
         v => /^https?:\/\/.+/i.test(v) || 'URL must be valid (e.g., http://homeassistant.local:8123)'
