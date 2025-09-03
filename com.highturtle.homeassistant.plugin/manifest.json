@@ -20,6 +20,10 @@
         {
             "platform": "windows",
             "minimumVersion": "10"
+        },
+        {
+            "platform": "linux",
+            "minimumVersion": "20.04"
         }
     ],
     "device": [
