@@ -101,6 +101,12 @@
             "EntityState": {
                 "Title": "Entity State",
                 "Tip": "Display the state of a Home Assistant entity",
+                "NoStateAvailable": "No state available",
+                "Errors": {
+                    "AuthenticationFailed": "Authentication failed. Check your API key in the plugin settings.",
+                    "ConnectionTimeout": "Connection timed out. Check your Home Assistant URL and network connection, then try again.",
+                    "EntityNotFound": "Entity not found in Home Assistant."
+                },
                 "Fields": {
                     "EntityId": {
                         "Label": "Entity",
