@@ -3,16 +3,18 @@
     <v-row>
       <v-col cols="12">
         <div class="d-flex align-center">
-          <v-select
+          <v-autocomplete
             :items="entities"
             :item-props="itemProps"
+            item-value="entity_id"
             v-model="modelValue.data.entityId"
             :label="$t('EntityState.Fields.EntityId.Label')"
-            @update:model-value="$emit('update:modelValue', modelValue)"
+            :custom-filter="filterEntity"
+            @update:model-value="onEntitySelected"
             :loading="loading"
             :error-messages="error"
             class="flex-grow-1"
-          ></v-select>
+          ></v-autocomplete>
           <v-btn
             icon
             size="small"
@@ -98,12 +100,22 @@ export default {
     }
   },
   methods: {
+    onEntitySelected() {
+      this.stateError = null
+      this.$emit('update:modelValue', this.modelValue)
+    },
     itemProps(item) {
       return {
         key: item.entity_id,
         title: item.attributes?.friendly_name || item.entity_id,
         subtitle: item.state + (item.attributes?.unit_of_measurement ? ` ${item.attributes.unit_of_measurement}` : '')
       }
+    },
+    filterEntity(value, query, item) {
+      const search = query.toLowerCase()
+      const entityId = (value || '').toLowerCase()
+      const friendlyName = (item?.raw?.attributes?.friendly_name || '').toLowerCase()
+      return entityId.includes(search) || friendlyName.includes(search)
     },
     async fetchEntities() {
       this.loading = true
