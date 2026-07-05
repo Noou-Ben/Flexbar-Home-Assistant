@@ -45,7 +45,7 @@
                 "cid": "com.highturtle.homeassistant.state",
                 "config": {
                     "keyType": "default",
-                    "clickable": false
+                    "clickable": true
                 },
                 "style": {
                     "icon": "mdi mdi-gauge",
@@ -53,7 +53,9 @@
                 },
                 "data": {
                     "entityId": "",
-                    "customTitle": ""
+                    "customTitle": "",
+                    "triggerEntityId": "",
+                    "pressAction": "none"
                 }
             },
             {
@@ -111,6 +113,17 @@
                     "EntityId": {
                         "Label": "Entity",
                         "Placeholder": "Select an entity"
+                    },
+                    "TriggerEntityId": {
+                        "Label": "Press Action Entity",
+                        "Placeholder": "Select an entity to control on press"
+                    },
+                    "PressAction": {
+                        "Label": "Press Action",
+                        "On": "On",
+                        "Off": "Off",
+                        "Toggle": "Toggle",
+                        "None": "None"
                     }
                 }
             },

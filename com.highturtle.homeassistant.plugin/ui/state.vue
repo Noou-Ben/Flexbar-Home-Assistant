@@ -7,7 +7,7 @@
             :items="autocompleteItems"
             :item-props="itemProps"
             item-value="entity_id"
-            :model-value="entityMenuOpen ? null : resolvedEntityId"
+            :model-value="resolvedEntityId"
             v-model:search="entitySearch"
             :label="$t('EntityState.Fields.EntityId.Label')"
             :custom-filter="filterEntity"
@@ -40,6 +40,70 @@
           persistent-hint
           @update:model-value="onCustomTitleChanged"
         ></v-text-field>
+      </v-col>
+    </v-row>
+    <v-row>
+      <v-col cols="12">
+        <div class="press-action-section mt-2">
+          <div class="v-label mb-2">{{ $t('EntityState.Fields.PressAction.Label') }}</div>
+          <v-radio-group
+              v-model="modelValue.data.pressAction"
+              inline
+              hide-details
+              @update:model-value="onPressActionChanged"
+          >
+            <v-radio
+                :label="$t('EntityState.Fields.PressAction.None')"
+                value="none"
+                class="press-action-radio-none"
+            ></v-radio>
+            <v-radio
+                :label="$t('EntityState.Fields.PressAction.On')"
+                value="on"
+            ></v-radio>
+            <v-radio
+                :label="$t('EntityState.Fields.PressAction.Off')"
+                value="off"
+            ></v-radio>
+            <v-radio
+                :label="$t('EntityState.Fields.PressAction.Toggle')"
+                value="toggle"
+            ></v-radio>
+          </v-radio-group>
+          <div
+              v-if="modelValue.data.pressAction !== 'none'"
+              class="press-action-entity-row d-flex align-center"
+          >
+            <div class="press-action-entity-spacer flex-shrink-0" aria-hidden="true"></div>
+            <div class="press-action-entity-content d-flex align-center flex-grow-1">
+              <v-autocomplete
+                  :items="triggerAutocompleteItems"
+                  :item-props="itemProps"
+                  item-value="entity_id"
+                  :model-value="resolvedTriggerEntityId"
+                  v-model:search="triggerEntitySearch"
+                  :label="$t('EntityState.Fields.TriggerEntityId.Label')"
+                  :custom-filter="filterEntity"
+                  hide-no-data
+                  @update:model-value="onTriggerEntitySelected"
+                  @update:menu="onTriggerEntityMenuToggle"
+                  :loading="loading"
+                  :error-messages="error"
+                  class="flex-grow-1"
+              ></v-autocomplete>
+              <v-btn
+                  icon
+                  size="small"
+                  :loading="loading"
+                  @click="fetchEntities(true)"
+                  :disabled="loading"
+                  class="ml-2"
+              >
+                <v-icon>mdi-refresh</v-icon>
+              </v-btn>
+            </div>
+          </div>
+        </div>
       </v-col>
     </v-row>
     <v-row v-if="resolvedEntityId">
@@ -110,12 +174,15 @@ export default {
       stateFetchId: 0,
       isInitializing: true,
       entitySearch: '',
-      entityMenuOpen: false
+      triggerEntitySearch: ''
     }
   },
   computed: {
     resolvedEntityId() {
       return this.resolveEntityId(this.modelValue.data.entityId)
+    },
+    resolvedTriggerEntityId() {
+      return this.resolveEntityId(this.modelValue.data.triggerEntityId)
     },
     autocompleteItems() {
       const entityId = this.resolvedEntityId
@@ -131,19 +198,66 @@ export default {
           friendly_name: this.entityAttributes?.friendly_name || this.entityName || entityId
         }
       }, ...this.entities]
+    },
+    triggerAutocompleteItems() {
+      const entityId = this.resolvedTriggerEntityId
+      if (!entityId || this.entities.some((entity) => entity.entity_id === entityId)) {
+        return this.entities
+      }
+
+      return [{
+        entity_id: entityId,
+        state: null,
+        attributes: {
+          friendly_name: entityId
+        }
+      }, ...this.entities]
     }
   },
   async created() {
+    this.ensureClickableKeyConfig()
+    if (!this.modelValue.data.pressAction) {
+      this.modelValue.data.pressAction = 'toggle'
+    }
     this.syncStoredEntityId()
+    this.syncStoredTriggerEntityId()
     await this.fetchEntities()
     if (this.resolvedEntityId) {
       if (!this.applyCachedEntityState()) {
         await this.fetchEntityState(true)
       }
     }
+    this.syncEntitySearchToSelection()
+    this.syncTriggerEntitySearchToSelection()
     this.isInitializing = false
   },
   methods: {
+    ensureClickableKeyConfig() {
+      let changed = false
+
+      for (const configKey of ['cfg', 'config']) {
+        if (!this.modelValue[configKey]) {
+          this.modelValue[configKey] = { keyType: 'default' }
+          changed = true
+        }
+
+        const keyConfig = this.modelValue[configKey]
+        keyConfig.keyType = keyConfig.keyType || 'default'
+
+        if (keyConfig.clickable !== true) {
+          keyConfig.clickable = true
+          changed = true
+        }
+        if (keyConfig.sendKey !== false) {
+          keyConfig.sendKey = false
+          changed = true
+        }
+      }
+
+      if (changed) {
+        this.$emit('update:modelValue', this.modelValue)
+      }
+    },
     resolveEntityId(entityId) {
       if (entityId == null || entityId === '') return null
       if (typeof entityId === 'object') {
@@ -182,6 +296,24 @@ export default {
 
       return false
     },
+    syncStoredTriggerEntityId() {
+      const rawEntityId = this.modelValue.data.triggerEntityId
+      const resolvedEntityId = this.resolveEntityId(rawEntityId)
+      if (!resolvedEntityId) {
+        if (rawEntityId) {
+          this.persistTriggerEntityId(null)
+          return true
+        }
+        return false
+      }
+
+      if (rawEntityId !== resolvedEntityId) {
+        this.persistTriggerEntityId(resolvedEntityId)
+        return true
+      }
+
+      return false
+    },
     persistEntityId(entityId) {
       const resolvedEntityId = this.resolveEntityId(entityId)
       if (this.modelValue.data.entityId === (resolvedEntityId || '')) return
@@ -204,17 +336,63 @@ export default {
       }
 
       this.persistEntityId(nextEntityId)
-      this.entitySearch = ''
+      this.syncEntitySearchToSelection()
     },
     onEntityMenuToggle(isOpen) {
-      this.entityMenuOpen = isOpen
       if (isOpen) {
         this.$nextTick(() => {
           this.entitySearch = ''
         })
         return
       }
-      this.entitySearch = ''
+      this.syncEntitySearchToSelection()
+    },
+    getEntityDisplayTitle(entityId) {
+      if (!entityId) return ''
+      const entity = this.entities.find((item) => item.entity_id === entityId)
+        || this.autocompleteItems.find((item) => item.entity_id === entityId)
+      return entity?.attributes?.friendly_name || entityId
+    },
+    syncEntitySearchToSelection() {
+      this.entitySearch = this.getEntityDisplayTitle(this.resolvedEntityId)
+    },
+    syncTriggerEntitySearchToSelection() {
+      this.triggerEntitySearch = this.getEntityDisplayTitle(this.resolvedTriggerEntityId)
+    },
+    persistTriggerEntityId(entityId) {
+      const resolvedEntityId = this.resolveEntityId(entityId)
+      if (this.modelValue.data.triggerEntityId === (resolvedEntityId || '')) return
+      this.modelValue.data.triggerEntityId = resolvedEntityId || ''
+      this.$emit('update:modelValue', this.modelValue)
+    },
+    onTriggerEntitySelected(value) {
+      const nextEntityId = this.resolveEntityId(value)
+
+      if (!nextEntityId) {
+        if (this.resolvedTriggerEntityId) {
+          this.persistTriggerEntityId(null)
+        }
+        return
+      }
+
+      if (nextEntityId === this.resolvedTriggerEntityId) {
+        return
+      }
+
+      this.persistTriggerEntityId(nextEntityId)
+      this.syncTriggerEntitySearchToSelection()
+    },
+    onTriggerEntityMenuToggle(isOpen) {
+      if (isOpen) {
+        this.$nextTick(() => {
+          this.triggerEntitySearch = ''
+        })
+        return
+      }
+      this.syncTriggerEntitySearchToSelection()
+    },
+    onPressActionChanged() {
+      this.$emit('update:modelValue', this.modelValue)
     },
     onCustomTitleChanged() {
       this.updateEntityName()
@@ -289,6 +467,8 @@ export default {
         if (this.resolvedEntityId) {
           this.applyCachedEntityState()
         }
+        this.syncEntitySearchToSelection()
+        this.syncTriggerEntitySearchToSelection()
         return true
       } catch (error) {
         if (setFieldError) {
@@ -412,6 +592,7 @@ export default {
         if (!this.resolvedEntityId) {
           this.stateFetchId++
           this.clearEntityState()
+          this.syncEntitySearchToSelection()
           return
         }
 
@@ -426,7 +607,33 @@ export default {
     },
     'modelValue.data.customTitle'() {
       this.updateEntityName()
+    },
+    'modelValue.data.triggerEntityId': {
+      handler() {
+        if (this.isInitializing) return
+        this.syncStoredTriggerEntityId()
+        this.syncTriggerEntitySearchToSelection()
+      }
     }
   }
 }
 </script>
+
+<style scoped>
+.press-action-section {
+  --press-action-none-width: 128px;
+}
+
+.press-action-radio-none {
+  width: var(--press-action-none-width);
+}
+
+.press-action-entity-spacer {
+  width: var(--press-action-none-width);
+}
+
+.press-action-entity-row,
+.press-action-entity-content {
+  min-width: 0;
+}
+</style>

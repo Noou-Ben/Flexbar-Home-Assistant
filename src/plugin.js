@@ -381,15 +381,44 @@ plugin.on('device.status', (devices) => {
  *  keys: []
  * }
  */
+function prepareStateKey(key) {
+  if (!key.cfg) {
+    key.cfg = { keyType: 'default' }
+  }
+  key.cfg.keyType = key.cfg.keyType || 'default'
+  key.cfg.clickable = true
+  key.cfg.sendKey = false
+  return key
+}
+
+function isKeyClick(data) {
+  return data?.evt === 'click'
+}
+
+function getMergedKeyData(key) {
+  const storedData = keyData[key.uid]?.data || {}
+  const liveData = key.data || {}
+  return { ...storedData, ...liveData }
+}
+
 plugin.on('plugin.alive', async (payload) => {
   logger.info('Plugin alive:', payload)
   try {
     await haPlugin.init()
     for (let key of payload.keys) {
-      keyData[key.uid] = key
       if (key.cid === 'com.highturtle.homeassistant.state') {
+        prepareStateKey(key)
+        keyData[key.uid] = key
+        try {
+          await plugin.draw(payload.serialNumber, key, 'draw')
+          logger.info('State key clickable config applied for uid:', key.uid)
+        } catch (error) {
+          logger.warn('Failed to apply state key clickable config:', error)
+        }
         // Don't render immediately, wait for the key to be fully alive
         setTimeout(() => renderKey(payload.serialNumber, key), 1000)
+      } else {
+        keyData[key.uid] = key
       }
     }
   } catch (error) {
@@ -408,10 +437,20 @@ plugin.on('plugin.alive', async (payload) => {
 plugin.on('plugin.data', async (payload) => {
   logger.info('Received plugin.data:', payload)
   const data = payload.data
-  if (data.key.cid === "com.highturtle.homeassistant.state") {
-    const key = data.key
+  const key = data.key
+
+  if (key.cid === 'com.highturtle.homeassistant.state') {
+    prepareStateKey(key)
+    keyData[key.uid] = key
+
+    if (isKeyClick(data)) {
+      await handleStateKeyPress(payload.serialNumber, key)
+      return { status: 'success' }
+    }
+
     // Don't render immediately, wait for the key to be fully alive
     setTimeout(() => renderKey(payload.serialNumber, key), 1000)
+    return
   }
 })
 
@@ -424,9 +463,58 @@ plugin.on('plugin.removed', (payload) => {
   }
 })
 
+const PRESS_ACTION_SERVICES = {
+  on: 'turn_on',
+  off: 'turn_off',
+  toggle: 'toggle'
+}
+
+async function sendHapticClick(serialNumber) {
+  try {
+    await plugin.sendControlCommand(serialNumber, 'haptic.click')
+  } catch (error) {
+    logger.warn('Haptic feedback failed:', error)
+  }
+}
+
+async function handleStateKeyPress(serialNumber, key) {
+  const mergedData = getMergedKeyData(key)
+  const pressAction = mergedData.pressAction || 'toggle'
+
+  if (pressAction === 'none') {
+    logger.info('State key pressed but press action is disabled')
+    return
+  }
+
+  await sendHapticClick(serialNumber)
+
+  const triggerEntityId = normalizeEntityId(mergedData.triggerEntityId)
+  if (!triggerEntityId) {
+    logger.info('State key pressed but no trigger entity configured')
+    return
+  }
+
+  const service = PRESS_ACTION_SERVICES[pressAction] || 'toggle'
+  const domain = triggerEntityId.split('.')[0]
+
+  logger.info('Triggering press action:', { triggerEntityId, pressAction, service, domain })
+
+  try {
+    await haPlugin.callService({
+      domain,
+      service,
+      serviceData: { entity_id: triggerEntityId }
+    })
+    await renderKey(serialNumber, key)
+  } catch (error) {
+    logger.error('Error triggering entity on press:', error)
+  }
+}
+
 async function renderKey(serialNumber, key) {
   try {
     if (key.cid === 'com.highturtle.homeassistant.state') {
+      prepareStateKey(key)
       const entityId = key.data?.entityId
       const customTitle = key.data?.customTitle
       const refreshInterval = key.data?.refreshInterval || 10000 // Default to 10 seconds
