@@ -45,7 +45,7 @@
                 "cid": "com.highturtle.homeassistant.state",
                 "config": {
                     "keyType": "default",
-                    "clickable": false
+                    "clickable": true
                 },
                 "style": {
                     "icon": "mdi mdi-gauge",
@@ -53,7 +53,9 @@
                 },
                 "data": {
                     "entityId": "",
-                    "customTitle": ""
+                    "customTitle": "",
+                    "triggerEntityId": "",
+                    "pressAction": "none"
                 }
             },
             {
@@ -101,10 +103,27 @@
             "EntityState": {
                 "Title": "Entity State",
                 "Tip": "Display the state of a Home Assistant entity",
+                "NoStateAvailable": "No state available",
+                "Errors": {
+                    "AuthenticationFailed": "Authentication failed. Check your API key in the plugin settings.",
+                    "ConnectionTimeout": "Connection timed out. Check your Home Assistant URL and network connection, then try again.",
+                    "EntityNotFound": "Entity not found in Home Assistant."
+                },
                 "Fields": {
                     "EntityId": {
                         "Label": "Entity",
                         "Placeholder": "Select an entity"
+                    },
+                    "TriggerEntityId": {
+                        "Label": "Press Action Entity",
+                        "Placeholder": "Select an entity to control on press"
+                    },
+                    "PressAction": {
+                        "Label": "Press Action",
+                        "On": "On",
+                        "Off": "Off",
+                        "Toggle": "Toggle",
+                        "None": "None"
                     }
                 }
             },
