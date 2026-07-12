@@ -428,9 +428,9 @@ plugin.on('plugin.alive', async (payload) => {
 
 /**
  * Called when user interacts with a key
- * @param {object} payload key data 
+ * @param {object} payload key data
  * {
- *  serialNumber, 
+ *  serialNumber,
  *  data
  * }
  */
@@ -542,10 +542,12 @@ async function renderKey(serialNumber, key) {
           const displayName = customTitle || entity.attributes?.friendly_name || actualEntityId
           const state = entity.state
           const unit = entity.attributes?.unit_of_measurement || ''
+          const titleLine2 = state === 'unavailable' ? '-' : `${state}${unit ? ' ' + unit : ''}`;
 
           key.style.showIcon = true
           key.style.showTitle = true
-          key.title = `${displayName}\n${state}${unit ? ' ' + unit : ''}`
+          key.title = `${displayName}\n${titleLine2}`
+
           plugin.draw(serialNumber, key, 'draw')
         } catch (error) {
           logger.error('Error fetching entity state:', error)
